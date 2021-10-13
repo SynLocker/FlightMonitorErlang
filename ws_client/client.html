@@ -1,0 +1,110 @@
+<html>
+    <head>
+        <style>
+            html{
+                background-color: #222629;
+            }
+
+            .green_border{
+                border: 2px;
+                border-color: #61892F;
+                border-style: solid;
+            }
+            #mapcontainer{ 
+                background: url(map.svg) no-repeat; 
+                background-size: contain;
+                background-color: #265077;
+            }
+
+            .plane:hover{
+                fill: #111111;
+                cursor: pointer;
+            }
+
+            @media screen and (orientation:landscape) {
+                .box{
+                    height: 98vh;
+                    width: 98vh;
+                }
+            }
+            @media screen and (orientation:portrait) {
+                .box{
+                    height: 98vw;
+                    width: 98vw;
+                }
+            }
+        </style>
+        <script>
+
+            const svgns = "http://www.w3.org/2000/svg";
+            appendText = (planesData) => {
+                
+                const msg_type = planesData.substring(0, 17);
+
+                console.log(msg_type);
+                if(msg_type !== "plane_info_update")
+                    return;
+
+                planesData = planesData.substring(17);
+
+                const skymap = document.getElementById("skymap");
+                skymap.textContent = '';
+
+                const planesDataJSON = JSON.parse(planesData);
+
+                for (const currentPlane of planesDataJSON){
+                    let planeElement = document.getElementById('plane_' + currentPlane.plane_id);
+                    if (!planeElement){
+                        planeElement = document.createElementNS(svgns, "path");
+                        planeElement.setAttribute('id', 'plane_' + currentPlane.plane_id);
+                        planeElement.setAttribute('class', 'plane');
+                        planeElement.setAttribute('onclick', 'console.log("plane_'+ currentPlane.plane_id+'")');
+                    }
+                    const x = 500 + (currentPlane.x|0) * 0.5;
+                    const y = 500 - (currentPlane.y|0) * 0.5;
+                    const path = "M"+ (x - 5) +" "+ (y - 8) +" L"+ (x + 5) +" "+ (y - 8) +" L"+ (x) +" "+ (y + 8) +" Z";
+                    const correctAngle = (currentPlane.angle + 90) % 360;
+                    const rotate = "rotate( -"+ correctAngle +" "+ x +" "+ y +")";
+                    planeElement.setAttribute('d', path);
+                    planeElement.setAttribute('transform', rotate);
+                    planeElement.setAttribute('fill', '#86B3D1');
+                    skymap.appendChild(planeElement);
+                }
+
+            }
+
+            (() =>{
+                window.wsconnection = new WebSocket("ws://localhost:8080/ws");
+                wsconnection.onopen = event => console.log("Websocket opened");
+                wsconnection.onclose = event => console.log("websocket closing");
+                wsconnection.onmessage = event => appendText(event.data);
+            })();
+
+            const interval = setInterval(function() {
+                    wsconnection.send("ping")
+            }, 60000);
+
+            createPlane = (id, x, y, angle, speed) => {
+                const msg = JSON.stringify({"type": "create", "plane_id": id, "x": x, "y": y, "angle": angle, "speed": speed});
+                wsconnection.send("planemsg" + msg);
+            }
+
+            updatePlane = (id, param, value) => {
+                const msg = JSON.stringify({"type": "update", "plane_id": id, "param": param, "value": value});
+                wsconnection.send("planemsg" + msg);                
+            }
+
+            destroyPlane = (id) => {
+                const msg = JSON.stringify({"type": "destroy", "plane_id": id});
+                wsconnection.send("planemsg" + msg);                
+            }
+
+        </script>
+    </head>
+    <body>
+        <div id="mapcontainer" class="box">
+            <svg xmlns="http://www.w3.org/2000/svg" id="skymap" viewBox="0 0 1000 1000" class="green_border">
+            </svg>
+        </div>  
+    </body>
+</html>
